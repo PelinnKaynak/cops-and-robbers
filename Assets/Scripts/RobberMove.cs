@@ -80,7 +80,12 @@ public class RobberMove : Movement
 
     //Recibimos colisión. Nos han capturado
     private void OnCollisionEnter(Collision collision)
-    { 
+    {
+        // Si estamos reiniciando la partida, ignoramos las colisiones
+        if (restarting)
+        {
+            return;
+        }
         if (collision.gameObject.tag == "Cop")
         {
             finishing = true;

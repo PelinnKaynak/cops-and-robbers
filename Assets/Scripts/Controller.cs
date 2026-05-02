@@ -48,15 +48,54 @@ public class Controller : MonoBehaviour
 
     public void InitAdjacencyLists()
     {
-        //Matriz de adyacencia
+        // Matriz de adyacencia
         int[,] matriu = new int[Constants.NumTiles, Constants.NumTiles];
 
-        //TODO: Inicializar matriz a 0's
+        // Inicializar matriz a 0
+        for (int i = 0; i < Constants.NumTiles; i++)
+        {
+            for (int j = 0; j < Constants.NumTiles; j++)
+            {
+                matriu[i, j] = 0;
+            }
+        }
 
-        //TODO: Para cada posición, rellenar con 1's las casillas adyacentes (arriba, abajo, izquierda y derecha)
+        // Para cada casilla, marcamos sus vecinos (arriba, abajo, izquierda, derecha)
+        for (int i = 0; i < Constants.NumTiles; i++)
+        {
+            int fila = i / Constants.TilesPerRow;
+            int columna = i % Constants.TilesPerRow;
 
-        //TODO: Rellenar la lista "adjacency" de cada casilla con los índices de sus casillas adyacentes
+            // Abajo
+            if (fila > 0)
+                matriu[i, i - Constants.TilesPerRow] = 1;
 
+            // Arriba
+            if (fila < Constants.TilesPerRow - 1)
+                matriu[i, i + Constants.TilesPerRow] = 1;
+
+            // Izquierda
+            if (columna > 0)
+                matriu[i, i - 1] = 1;
+
+            // Derecha
+            if (columna < Constants.TilesPerRow - 1)
+                matriu[i, i + 1] = 1;
+        }
+
+        // Rellenar adjacency list de cada Tile
+        for (int i = 0; i < Constants.NumTiles; i++)
+        {
+            tiles[i].adjacency.Clear();
+
+            for (int j = 0; j < Constants.NumTiles; j++)
+            {
+                if (matriu[i, j] == 1)
+                {
+                    tiles[i].adjacency.Add(j);
+                }
+            }
+        }
     }
 
     //Reseteamos cada casilla: color, padre, distancia y visitada
@@ -95,13 +134,15 @@ public class Controller : MonoBehaviour
             case Constants.CopSelected:
                 //Si es una casilla roja, nos movemos
                 if (tiles[clickedTile].selectable)
-                {                  
+                {
                     cops[clickedCop].GetComponent<CopMove>().MoveToTile(tiles[clickedTile]);
-                    cops[clickedCop].GetComponent<CopMove>().currentTile=tiles[clickedTile].numTile;
-                    tiles[clickedTile].current = true;   
-                    
+                    cops[clickedCop].GetComponent<CopMove>().currentTile = tiles[clickedTile].numTile;
+                    tiles[clickedTile].current = true;
+
+                    Debug.Log("Dfs2: " + tiles[clickedTile].numTile);
+
                     state = Constants.TileSelected;
-                }                
+                }
                 break;
             case Constants.TileSelected:
                 state = Constants.Init;
@@ -136,28 +177,69 @@ public class Controller : MonoBehaviour
 
     public void RobberTurn()
     {
+        ResetTiles();
+
+        // Posición actual del ladrón
         clickedTile = robber.GetComponent<RobberMove>().currentTile;
         tiles[clickedTile].current = true;
+
+        // Calculamos las casillas alcanzables por el ladrón
         FindSelectableTiles(false);
 
-        /*TODO: Cambia el código de abajo para hacer lo siguiente
-        - Elegimos una casilla aleatoria entre las seleccionables que puede ir el caco
-        - Movemos al caco a esa casilla
-        - Actualizamos la variable currentTile del caco a la nueva casilla
-        */
-        robber.GetComponent<RobberMove>().MoveToTile(tiles[robber.GetComponent<RobberMove>().currentTile]);
+        // Lista de casillas seleccionables
+        List<Tile> selectableTiles = new List<Tile>();
+
+        for (int i = 0; i < Constants.NumTiles; i++)
+        {
+            if (tiles[i].selectable)
+            {
+                selectableTiles.Add(tiles[i]);
+            }
+        }
+
+        if (selectableTiles.Count > 0)
+        {
+            Tile bestTile = selectableTiles[0];
+            int bestDistance = -1;
+
+            for (int i = 0; i < selectableTiles.Count; i++)
+            {
+                Tile candidate = selectableTiles[i];
+
+                int distanceToCop0 = GetDistance(candidate.numTile, cops[0].GetComponent<CopMove>().currentTile);
+                int distanceToCop1 = GetDistance(candidate.numTile, cops[1].GetComponent<CopMove>().currentTile);
+
+                // Nos quedamos con la distancia al policía más cercano
+                int minDistanceToCops = Mathf.Min(distanceToCop0, distanceToCop1);
+
+                // Elegimos la casilla cuya distancia mínima sea mayor
+                if (minDistanceToCops > bestDistance)
+                {
+                    bestDistance = minDistanceToCops;
+                    bestTile = candidate;
+                }
+            }
+
+            // Movemos el ladrón a la casilla más segura
+            robber.GetComponent<RobberMove>().MoveToTile(bestTile);
+
+            // Actualizamos su posición
+            robber.GetComponent<RobberMove>().currentTile = bestTile.numTile;
+
+            // En consola: solo el número de la casilla del ladrón
+            Debug.Log(bestTile.numTile);
+        }
     }
 
     public void EndGame(bool end)
     {
-        if(end)
+        if (end)
             finalMessage.text = "You Win!";
         else
             finalMessage.text = "You Lose!";
         playAgainButton.interactable = true;
         state = Constants.End;
     }
-
     public void PlayAgain()
     {
         cops[0].GetComponent<CopMove>().Restart(tiles[Constants.InitialCop0]);
@@ -188,36 +270,117 @@ public class Controller : MonoBehaviour
 
     public void FindSelectableTiles(bool cop)
     {
-                 
-        int indexcurrentTile;        
+        int indexcurrentTile;
 
-        if (cop==true)
+        if (cop == true)
             indexcurrentTile = cops[clickedCop].GetComponent<CopMove>().currentTile;
         else
             indexcurrentTile = robber.GetComponent<RobberMove>().currentTile;
 
-        //La ponemos rosa porque acabamos de hacer un reset
+        // La ponemos rosa porque acabamos de hacer un reset
         tiles[indexcurrentTile].current = true;
 
-        //Cola para el BFS
+        // Cola para el BFS
         Queue<Tile> nodes = new Queue<Tile>();
 
-        //TODO: Implementar BFS. Los nodos seleccionables los ponemos como selectable=true
-        //Tendrás que cambiar este código por el BFS
-        for(int i = 0; i < Constants.NumTiles; i++)
+        // Marcamos la casilla inicial como visitada
+        tiles[indexcurrentTile].visited = true;
+        tiles[indexcurrentTile].distance = 0;
+
+        // Metemos la casilla inicial en la cola
+        nodes.Enqueue(tiles[indexcurrentTile]);
+
+        // BFS limitado a distancia 2
+        while (nodes.Count > 0)
         {
-            tiles[i].selectable = true;
+            Tile actual = nodes.Dequeue();
+
+            // Si ya hemos llegado a la distancia máxima, no seguimos expandiendo
+            if (actual.distance == Constants.Distance)
+            {
+                continue;
+            }
+
+            // Recorremos todos los vecinos de la casilla actual
+            foreach (int vecino in actual.adjacency)
+            {
+                Tile tileVecino = tiles[vecino];
+
+                // Si mueve un policía, no puede pasar por la casilla del otro policía
+                if (cop == true)
+                {
+                    int otroPolicia;
+
+                    if (clickedCop == 0)
+                        otroPolicia = cops[1].GetComponent<CopMove>().currentTile;
+                    else
+                        otroPolicia = cops[0].GetComponent<CopMove>().currentTile;
+
+                    if (vecino == otroPolicia)
+                    {
+                        continue;
+                    }
+                }
+
+                // Si el vecino no ha sido visitado, lo añadimos al BFS
+                if (!tileVecino.visited)
+                {
+                    tileVecino.visited = true;
+                    tileVecino.parent = actual;
+                    tileVecino.distance = actual.distance + 1;
+
+                    // La ficha no puede quedarse en su casilla actual
+                    if (tileVecino.numTile != indexcurrentTile)
+                    {
+                        tileVecino.selectable = true;
+                    }
+
+                    nodes.Enqueue(tileVecino);
+                }
+            }
         }
 
 
     }
-    
-   
-    
 
-    
 
-   
 
-       
+
+    public int GetDistance(int startTile, int targetTile)
+    {
+        bool[] visited = new bool[Constants.NumTiles];
+        int[] distance = new int[Constants.NumTiles];
+
+        Queue<int> queue = new Queue<int>();
+
+        visited[startTile] = true;
+        distance[startTile] = 0;
+        queue.Enqueue(startTile);
+
+        while (queue.Count > 0)
+        {
+            int current = queue.Dequeue();
+
+            if (current == targetTile)
+            {
+                return distance[current];
+            }
+
+            foreach (int vecino in tiles[current].adjacency)
+            {
+                if (!visited[vecino])
+                {
+                    visited[vecino] = true;
+                    distance[vecino] = distance[current] + 1;
+                    queue.Enqueue(vecino);
+                }
+            }
+        }
+
+        return 999;
+    }
+
+
+
+
 }
