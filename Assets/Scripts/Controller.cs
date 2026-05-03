@@ -139,8 +139,6 @@ public class Controller : MonoBehaviour
                     cops[clickedCop].GetComponent<CopMove>().currentTile = tiles[clickedTile].numTile;
                     tiles[clickedTile].current = true;
 
-                    Debug.Log("Dfs2: " + tiles[clickedTile].numTile);
-
                     state = Constants.TileSelected;
                 }
                 break;
@@ -225,9 +223,6 @@ public class Controller : MonoBehaviour
 
             // Actualizamos su posición
             robber.GetComponent<RobberMove>().currentTile = bestTile.numTile;
-
-            // En consola: solo el número de la casilla del ladrón
-            Debug.Log(bestTile.numTile);
         }
     }
 
